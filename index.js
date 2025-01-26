@@ -429,6 +429,395 @@ app.post("/SetTheme", async (req, res) => {
     }
   });
 
+  app.post("/CheckForPermission", async (req, res) => {
+    const { username, token, permission } = req.body;
+    if (!(await LocalCheckToken(username, token))) {
+      return res.status(401).json({ error: "Invalid token." });
+    }
+  
+    try {
+      return res.send(await LocalCheckIfPermission(username, permission));
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  });
+  
+  app.post("/GetDailyMessage", async (req, res) => {
+    const { username, token } = req.body;
+    if (!(await LocalCheckToken(username, token))) {
+      return res.status(401).send("Incorrect token");
+    }
+    if (await LocalCheckBanStatus(username)) {
+      return res
+        .status(500)
+        .json({ error: "You are banned from using this service" });
+    }
+  
+    try {
+      let DailyMessage = Data["DailyMessage"];
+      if (!DailyMessage) {
+        return res.send({});
+      }
+      for (const dates in DailyMessage) {
+        if (await CheckIfDatePassed(dates)) {
+          console.log(dates + " Daily Message Deleted");
+          delete DailyMessage[dates];
+        }
+      }
+      return res.send(DailyMessage);
+    } catch (error) {
+      console.log(error);
+      return res.status(500).send("Error Occured");
+    }
+  });
+  
+  app.post("/AddDailyMessage", async (req, res) => {
+    const { username, token, Message, Date } = req.body;
+    if (!(await LocalCheckToken(username, token))) {
+      return res.status(401).send("Incorrect token");
+    }
+  
+    // Use the correct permission string here
+    if (!(await LocalCheckIfPermission(username, "Daily_Messenger"))) {
+      return res
+        .status(401)
+        .send("You do not have permission to set daily message");
+    }
+  
+    try {
+      let DailyMessage = Data["DailyMessage"];
+      if (!DailyMessage) {
+        DailyMessage = {};
+      }
+      DailyMessage[Date] = Message;
+     Data["DailyMessage"] = DailyMessage;
+      return res.send("Daily Message Set");
+    } catch (error) {
+      console.log(error);
+      return res.status(500).send("Error Occured");
+    }
+  });
+
+//Moderator Tools
+app.post("/CheckIfModerator", async (req, res) => {
+  const { username, token } = req.body;
+  try {
+    let userData = Data[username];
+    if (!userData) {
+      return res.status(401).json({ error: "Not a User" });
+    }
+    if (await LocalCheckBanStatus(username)) {
+      return res
+        .status(500)
+        .json({ error: "You are banned from using this service" });
+    }
+    if (!(await LocalCheckIfPermission(username, "Moderator"))) {
+      return res.status(401).send("You do not have permission to ban users.");
+    }
+    if (await LocalCheckToken(username, token)) {
+      res.send(true);
+    } else {
+      res.status(401).json({ error: "error" });
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Error Occured" });
+  }
+});
+
+app.post("/GetUserList", async (req, res) => {
+  const { username, token } = req.body;
+  try {
+    let allusers = Data["AllUsers"];
+    let BannedUsers = Data["BanUsers"];
+    let userData = Data[username];
+    if (!userData) {
+      return res.status(401).json({ error: "Not a User" });
+    }
+    if (await LocalCheckBanStatus(username)) {
+      return res
+        .status(500)
+        .json({ error: "You are banned from using this service" });
+    }
+    if (!(await LocalCheckIfPermission(username, "Moderator"))) {
+      return res.status(401).send("You do not have permission to ban users.");
+    }
+    if (await LocalCheckIfPermissionWithoutHierarchy(username, "Moderator")) {
+      for (let i = 1; i <= allusers.length; i++) {
+        let z = allusers.length - i;
+        if (await LocalCheckIfPermission(allusers[z], "Moderator")) {
+          allusers.splice(z, 1);
+        }
+      }
+    }
+    if (
+      (await LocalCheckIfPermissionWithoutHierarchy(
+        username,
+        "Daily_Messenger",
+      )) ||
+      (await LocalCheckIfPermissionWithoutHierarchy(
+        username,
+        "Head_Moderator",
+      )) ||
+      (await LocalCheckIfPermissionWithoutHierarchy(username, "Head_Judge")) ||
+      (await LocalCheckIfPermissionWithoutHierarchy(username, "Designer"))
+    ) {
+      for (let i = 1; i <= allusers.length; i++) {
+        let z = allusers.length - i;
+        if (
+          (await LocalCheckIfPermission(allusers[z], "Daily_Messenger")) ||
+          (await LocalCheckIfPermission(allusers[z], "Head_Moderator")) ||
+          (await LocalCheckIfPermission(allusers[z], "Head_Judge")) ||
+          (await LocalCheckIfPermission(allusers[z], "Designer"))
+        ) {
+          allusers.splice(z, 1);
+        }
+      }
+    }
+    if (await LocalCheckIfPermissionWithoutHierarchy(username, "Admin")) {
+      for (let i = 1; i <= allusers.length; i++) {
+        let z = allusers.length - i;
+        if (await LocalCheckIfPermission(allusers[z], "Admin")) {
+          allusers.splice(z, 1);
+        }
+      }
+    }
+    if (await LocalCheckToken(username, token)) {
+      res.send({
+        Users: allusers,
+        BanUsers: BannedUsers,
+      });
+    } else {
+      res.status(401).json({ error: "error" });
+    }
+  } catch (error) {
+    return false;
+  }
+});
+
+app.post("/BanUser", async (req, res) => {
+  const { username, token, userToBan, Status, experation, reason } = req.body;
+  try {
+    var experationData = experation;
+    if (experation == "") {
+      experationData = "None";
+    }
+    let userData = Data[username];
+    if (!userData) {
+      return res.status(401).json({ error: "Not a User" });
+    }
+    if (await LocalCheckBanStatus(username)) {
+      return res
+        .status(500)
+        .json({ error: "You are banned from using this service" });
+    }
+    if (!(await LocalCheckIfPermission(username, "Moderator"))) {
+      return res.status(401).send("You do not have permission to ban users.");
+    }
+    if (
+      (await LocalCheckIfPermissionWithoutHierarchy(username, "Moderator")) &&
+      (await LocalCheckIfPermission(userToBan, "Moderator"))
+    ) {
+      return res
+        .status(401)
+        .send("You do not have permission to ban this user.");
+    }
+    if (
+      ((await LocalCheckIfPermissionWithoutHierarchy(
+        username,
+        "Daily_Messenger",
+      )) &&
+        (await LocalCheckIfPermission(userToBan, "Daily_Messenger"))) ||
+      ((await LocalCheckIfPermissionWithoutHierarchy(
+        username,
+        "Head_Moderator",
+      )) &&
+        (await LocalCheckIfPermission(userToBan, "Head_Moderator"))) ||
+      ((await LocalCheckIfPermissionWithoutHierarchy(username, "Head_Judge")) &&
+        (await LocalCheckIfPermission(userToBan, "Head_Judge"))) ||
+      ((await LocalCheckIfPermissionWithoutHierarchy(username, "Designer")) &&
+        (await LocalCheckIfPermission(userToBan, "Designer")))
+    ) {
+      return res
+        .status(401)
+        .send("You do not have permission to ban this user.");
+    }
+    if (
+      (await LocalCheckIfPermissionWithoutHierarchy(username, "Admin")) &&
+      (await LocalCheckIfPermission(userToBan, "Admin"))
+    ) {
+      return res
+        .status(401)
+        .send("You do not have permission to ban this user.");
+    }
+    if (await LocalCheckToken(username, token)) {
+      if (Status == "Unban") {
+        await UnbanUser(userToBan);
+      } else {
+        await BanUser(userToBan, Status, experationData, reason, username);
+      }
+      res.status(200).json("User has been banned.");
+    } else {
+      res.status(401).json({ error: "error" });
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Error Occured" });
+  }
+});
+
+//News
+app.post("/GetNews", async (req, res) => {
+  const { username, token } = req.body;
+  try {
+    let userData = Data[username];
+    if (!userData) {
+      return res.status(401).json({ error: username });
+    }
+    if (await LocalCheckBanStatus(username)) {
+      return res
+        .status(500)
+        .json({ error: "You are banned from using this service" });
+    }
+    if (await LocalCheckToken(username, token)) {
+      res.send(Data["News"]);
+    } else {
+      res.status(401).json({ error: "Incorrect Token " });
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Error Occured" });
+  }
+});
+
+app.post("/PostNews", async (req, res) => {
+  const { username, token, NewsData } = req.body;
+  try {
+    let userData = Data[username];
+    if (!userData) {
+      return res.status(401).json({ error: "Not a User" });
+    }
+    if (await LocalCheckBanStatus(username)) {
+      return res
+        .status(500)
+        .json({ error: "You are banned from using this service" });
+    }
+    if (await LocalCheckIfPermission(username, "News-Writer")) {
+      if (await LocalCheckToken(username, token)) {
+        Data["News"] = NewsData;
+        res.send("News Posted");
+      } else {
+        res.status(401).json({ error: "Incorrect Token " });
+      }
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Error Occured" });
+  }
+});
+
+//Homework Manager
+app.post("/SetHomework", async (req, res) => {
+  const { username, token, HomeworkData } = req.body;
+  try {
+    if (await LocalCheckBanStatus(username)) {
+      return res
+        .status(500)
+        .json({ error: "You are banned from using this service" });
+    }
+    let userData = Data[username];
+    if (!userData) {
+      return res.status(401).json({ error: "Not a user" });
+    }
+    if (await LocalCheckToken(username, token)) {
+      userData.Homework = HomeworkData;
+      Data[username] = userData;
+      res.status(200).json({ message: "Homework Added" });
+    } else {
+      res.status(401).json({ error: "failed to authenticate" });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error });
+  }
+});
+
+app.post("/GetHomework", async (req, res) => {
+  const { username, token } = req.body;
+  try {
+    if (await LocalCheckBanStatus(username)) {
+      return res
+        .status(500)
+        .json({ error: "You are banned from using this service" });
+    }
+    let userData = Data[username];
+    if (!userData) {
+      return res.status(401).json({ error: "Not a user" });
+    }
+    if (await LocalCheckToken(username, token)) {
+      res.send(userData.Homework);
+    } else {
+      res.status(401).json({ error: "failed to authenticate" });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error });
+  }
+});
+
+app.post("/ChangePassword", async (req, res) => {
+  const { username, password, newpassword } = req.body;
+  if (!(await LocalCheckPassword(username, password))) {
+    return res.status(401).send("Incorrect Password");
+  }
+
+  try {
+    let userData = Data[username];
+    const hashedPassword = await bcrypt.hash(newpassword, 10); // Hashing the password
+    userData.password = hashedPassword;
+    Data[username] = userData;
+    console.log(username + " Changed Password");
+    return res.send("Password changed successfully.");
+  } catch {
+    return res.status(500).send("Error Occured");
+  }
+});
+
+app.post("/ResetTokens", async (req, res) => {
+  const { username, password } = req.body;
+  if (!(await LocalCheckPassword(username, password))) {
+    return res.status(401).send("Incorrect Password");
+  }
+
+  try {
+    let userData = Data[username];
+    userData.tokens = [];
+    Data[username] = userData;
+    console.log(username + " Reset All Tokens");
+    return res.send("Tokens Reset");
+  } catch {
+    return res.status(500).send("Error Occured");
+  }
+});
+
+app.post("/DeleteAccount", async (req, res) => {
+  const { username, password } = req.body;
+  if (!(await LocalCheckPassword(username, password))) {
+    return res.status(401).send("Incorrect Password");
+  }
+
+  try {
+    delete Data[username];
+    let AllAccount = Data["AllUsers"];
+    AllAccount.splice(AllAccount.indexOf(username), 1);
+    Data["AllUsers"] = AllAccount;
+    console.log(username + " account deleted");
+    return res.send("Account Deleted");
+  } catch {
+    return res.status(500).send("Error Occured");
+  }
+});
+
 //Boring Backend Stuff
 function saveDataToFile() {
     fs.writeFile('data.json', JSON.stringify(Data, null, 2), (err) => {
@@ -461,3 +850,164 @@ loadDataFromFile();
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
+
+async function MainRun() {
+  if (!(Data["AllUsers"])) {
+    Data["AllUsers"] = [];
+  }
+  if (!(Data["Posts"])) {
+    console.log("Post List Created");
+    Data["Posts"] = {};
+  }
+  if (!(Data["BanUsers"])) {
+    console.log("Ban users list created");
+    Data["BanUsers"] = [];
+  }
+  if (!(Data["News"])) {
+    Data["News"] = {
+      Data: '<p style="font-size:45px;">No News Set</p>',
+    };
+  }
+  let keys = Data["AllUsers"]; // Await the promise to get the actual value
+  for (const key of keys) {
+    console.log(key);
+    let user = Data[key];
+
+    if (!user.Banned) {
+      console.log("UserMissingBanInfo");
+      user.Banned = { Status: "Unban", Expire_Date: "None", Reason: "None" };
+      Data[key] = user;
+    }
+
+    if (!user.Alerts) {
+      console.log("No alert list");
+      user.Alerts = {
+        welcome: {
+          Subject: "Welcome to Alerts!",
+          Body: "Welcome to Alerts! This service allows you to get messages in regards to support, feedback, and more.",
+          Sender: "System",
+          Read: false,
+        },
+      };
+      Data[key] = user;
+    }
+
+    if (!user.PremissionLevel) {
+      console.log("UserMissingPremissonInfo");
+      user.PremissionLevel = { Level: "Free", Expire_date: "None" };
+      Data[key] = user;
+    }
+
+    if (!user.Theme) {
+      console.log("UserMissingThemeInfo");
+      user.Theme = { Type: "Light", Rgb: "rgb(0, 255, 255)" };
+      Data[key] = user;
+    }
+
+    if (!user.Homework) {
+      console.log("UserMissingHomeworkInfo");
+      user.Homework = [];
+      Data[key] = user;
+    }
+
+    await CheckifUserBanExpired(key);
+    console.log(user);
+  }
+}
+
+//Posting
+app.post("/PublishPost", async (req, res) => {
+  const { username, token, PostType, PostText } = req.body;
+  try {
+    let userData = Data[username];
+    if (!userData) {
+      return res.status(401).json({ error: "Not a user" });
+    }
+    if (await LocalCheckBanStatus(username)) {
+      return res
+        .status(500)
+        .json({ error: "You are banned from using this service" });
+    }
+    if (await LocalCheckToken(username, token)) {
+      const id = uuidv4();
+      let User = Data[username];
+      let Level = User.PremissionLevel.Level;
+      Data["Posts"][id] = {
+        User: username,
+        PostType: PostType,
+        PostText: PostText,
+        Level: Level,
+      };
+      res.status(200).json({ message: "Post Published" });
+    } else {
+      res.status(401).json({ error: "error" });
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Error Occured" });
+  }
+});
+
+app.post("/GetPosts", async (req, res) => {
+  const { username, token } = req.body;
+  if (!(await LocalCheckToken(username, token))) {
+    return res.status(401).send("Incorrect Token");
+  }
+  if (await LocalCheckBanStatus(username)) {
+    return res
+      .status(500)
+      .json({ error: "You are banned from using this service" });
+  }
+
+  try {
+    let Posts = Data["Posts"];
+    res.send(Posts);
+  } catch {
+    return res.status(500).send("Error Occured");
+  }
+});
+
+app.post("/DeletePost", async (req, res) => {
+  const { username, token, ID } = req.body;
+  try {
+    if (await LocalCheckBanStatus(username)) {
+      return res
+        .status(500)
+        .json({ error: "You are banned from using this service" });
+    }
+    let userData = Data[username];
+    let post = Data["Posts"];
+    if (!userData) {
+      return res.status(401).json({ error: "Not a user" });
+    }
+    if (post[ID].User != username) {
+      if (!(await LocalCheckIfPermission(username, "Moderator"))) {
+        if (
+          !(await LocalCheckIfPermission(
+            post[ID].User,
+            userData.PremissionLevel.Level,
+          ))
+        ) {
+          return res
+            .status(401)
+            .json({ error: "You do not have permission to delete this post" });
+        }
+      }
+    }
+    if (await LocalCheckToken(username, token)) {
+      delete Data["Posts"][ID];
+      res.status(200).json({ message: "Post Deleted" });
+    } else {
+      res.status(401).json({ error: "failed to authenticate" });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error });
+  }
+});
+
+async function StartServer() {
+  await MainRun();
+}
+
+StartServer()
