@@ -257,9 +257,12 @@ async function CheckIfExpired(dateString) {
   }
 
 async function hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-  return { salt, hash };
+  try {
+    const hash = await argon2.hash(password); // Hash the password
+    return hash;
+  } catch (err) {
+    throw new Error("Password hashing failed");
+  }
 }
 
 app.post("/createAccount", async (req, res) => {
