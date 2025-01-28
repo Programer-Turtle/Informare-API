@@ -2,7 +2,7 @@
 const express = require('express');
 const { v4: uuidv4 } = require("uuid");
 const cors = require("cors");
-const bcrypt = require("bcrypt");
+const argon2 = require('argon2');
 const fs = require('fs');
 const app = express();
 app.use(express.json());
@@ -12,6 +12,11 @@ app.use(cors());
 const PORT = 3000;
 
 Data = {
+}
+
+async function hashPassword(password) {
+  const hash = await argon2.hash(password);
+  console.log(hash);
 }
 
 async function CheckIfExpired(dateString) {
@@ -169,7 +174,7 @@ async function CheckIfExpired(dateString) {
   async function LocalCheckPassword(Username, Password) {
     try {
       let user = Data[Username];
-      const isMatch = await bcrypt.compare(Password, user.password);
+      const isMatch = await argon2.verify(storedHash, password);
       if (isMatch) {
         return true;
       } else {
