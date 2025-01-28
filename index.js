@@ -843,15 +843,15 @@ function loadDataFromFile() {
     }
 }
 
-setInterval(saveDataToFile, 60000); // 5 minutes
-
-loadDataFromFile();
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
-
 async function MainRun() {
+    setInterval(saveDataToFile, 5000); // 5 minutes
+
+    loadDataFromFile();
+    // Start the server
+    app.listen(PORT, () => {
+      console.log(`Server is running on http://localhost:${PORT}`);
+    });
+    
   if (!(Data["AllUsers"])) {
     Data["AllUsers"] = [];
   }
