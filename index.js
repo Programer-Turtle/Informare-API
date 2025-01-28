@@ -316,7 +316,7 @@ app.post("/createAccount", async (req, res) => {
         return res.status(401).json({ error: "Invalid email or password" });
       }
   
-      const isMatch = await argon2.verify(storedHash, password);
+      const isMatch = await argon2.verify(userData.password, password);
       if (isMatch) {
         //check if ban
   
