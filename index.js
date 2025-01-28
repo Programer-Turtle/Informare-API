@@ -256,11 +256,17 @@ async function CheckIfExpired(dateString) {
     }
   }
 
+async function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  return { salt, hash };
+}
+
 app.post("/createAccount", async (req, res) => {
     const { username, password } = req.body;
     try {
       console.log("Test")
-      let hashedPassword = await bcrypt.hash(password, 10); // Hashing the password
+      let hashedPassword = await hashPassword(password); // Hashing the password
       let existingUser = Data["username"]
   
       if (existingUser) {
