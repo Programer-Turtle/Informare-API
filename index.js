@@ -858,7 +858,7 @@ function loadDataFromFile() {
 }
 
 async function MainRun() {
-    setInterval(saveDataToFile, 5000); // 5 minutes
+    setInterval(saveDataToFile, 300000); // 5 minutes
 
     loadDataFromFile();
     // Start the server
