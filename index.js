@@ -174,7 +174,7 @@ async function CheckIfExpired(dateString) {
   async function LocalCheckPassword(Username, Password) {
     try {
       let user = Data[Username];
-      const isMatch = await argon2.verify(storedHash, password);
+      const isMatch = await argon2.verify(user.password, password);
       if (isMatch) {
         return true;
       } else {
