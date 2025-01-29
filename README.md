@@ -5,7 +5,7 @@ This is the backend API for Informare. This is used to handel accounts, posting,
 ```
 fs
 uuid
-bcrypt
+argon2
 cors
 express
 ```
