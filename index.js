@@ -265,6 +265,14 @@ async function hashPassword(password) {
   }
 }
 
+function containsUnallowedSymbol(str, allowedSymbols) {
+  // Create a regex pattern that allows only characters in the list
+  let regex = new RegExp(`^[a-zA-Z0-9${allowedSymbols.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}]*$`);
+  
+  // Return true if the string contains an unallowed symbol
+  return !regex.test(str);
+}
+
 app.post("/createAccount", async (req, res) => {
     const { username, password } = req.body;
     try {
@@ -279,6 +287,13 @@ app.post("/createAccount", async (req, res) => {
       if (password.length > 20 || username.length > 50) {
         return res.status(500).json({
           error: "You have exceeded the password limit. This is against policy.",
+        });
+        
+      }
+
+      if(containsUnallowedSymbol(username, "-_")){
+        return res.status(500).json({
+          error: "You have used illegal. This is against policy.",
         });
       }
   
