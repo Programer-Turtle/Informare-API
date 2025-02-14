@@ -9,7 +9,7 @@
   },
   "keywords": [],
   "author": "Turtle",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "uuid": "^8.3.2",
     "argon2": "^0.28.4",
